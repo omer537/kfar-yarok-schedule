@@ -97,6 +97,30 @@
   .highlights a { color: var(--navy); font-weight: 700; text-underline-offset: 4px; }
   .highlights[hidden] { display: none; }
 
+  /* ── פריסה: ימים + רשימת מבחנים בצד ── */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+  .layout .days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exams-panel {
+    position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto;
+    background: var(--card); border: 1px solid var(--line); border-right: 6px solid var(--navy);
+    border-radius: 18px; padding: 24px 22px 22px;
+  }
+  .exams-panel h2 { margin: 0; font-size: 22px; font-weight: 800; color: var(--navy); }
+  .exams-panel .hint { margin: 6px 0 16px; font-size: 14px; color: var(--ink-3); }
+  .xday { padding: 12px 0 14px; border-top: 1px solid var(--line); }
+  .xday h3 { margin: 0 0 8px; font-size: 16px; font-weight: 800; color: var(--ink); }
+  .xday h3 .date { font-size: 13px; font-weight: 500; color: var(--ink-3); margin-inline-start: 6px; }
+  .xday h3 .next { margin-inline-start: 8px; font-size: 12px; font-weight: 700; color: var(--navy); }
+  .xlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .xlist li { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 15px; line-height: 1.35; }
+  .xlist li.has { font-weight: 700; }
+  .xbtn {
+    flex: none; display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: 999px;
+    background: var(--navy); color: #fff; font-size: 13px; font-weight: 700; text-decoration: none;
+  }
+  .xbtn:hover { background: #1B1C48; }
+  .xnone { font-size: 14px; color: var(--ink-3); }
+
   /* ── ימים ── */
   .days { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 24px; align-items: stretch; }
   .day {
@@ -203,6 +227,8 @@
   .help-close { margin-top: 20px; }
 
   @media (max-width: 1080px) {
+    .layout { grid-template-columns: 1fr; }
+    .exams-panel { position: static; max-height: none; order: -1; }
     .page { padding: 32px 24px 40px; }
     .days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
@@ -214,7 +240,7 @@
     .top .sub { margin-top: 10px; font-size: 19px; }
     .chips { gap: 8px; }
     .chip { height: 36px; min-width: 42px; padding: 0 12px; font-size: 16px; }
-    .days { grid-template-columns: 1fr; gap: 16px; }
+    .days, .layout .days { grid-template-columns: 1fr; gap: 16px; }
     .week-title h2 { font-size: 22px; }
     .highlights { padding: 18px 20px 20px; }
     .highlights p { font-size: 17px; }
@@ -255,9 +281,16 @@
     <div id="hlText"></div>
   </section>
 
-  <main class="days" id="days">
-    <p class="state">טוען את המערכת…</p>
-  </main>
+  <div class="layout">
+    <main class="days" id="days">
+      <p class="state">טוען את המערכת…</p>
+    </main>
+    <aside class="exams-panel" id="examPanel" aria-labelledby="xTitle" hidden>
+      <h2 id="xTitle">מבחני השבוע</h2>
+      <p class="hint">לחיצה על «חומר» פותחת את חומר ההכנה למבחן.</p>
+      <div id="xBody"></div>
+    </aside>
+  </div>
 
   <p class="stamp" id="stamp"></p>
 </div>
@@ -268,7 +301,7 @@
     <li>הדף נפתח על השבוע הנוכחי. מיום חמישי בבוקר הוא עובר לשבוע הבא. הכפתורים למעלה מעבירים בין שבועות.</li>
         <li>מה שמופיע בכתום הוא שינוי לשבוע הזה: שם מחוק לא מגיע, שם צבוע מגיע במיוחד.</li>
     <li>מבחן עם התווית «חומר» הוא לחיץ, ופותח את החומר להכנה.</li>
-    <li>אחרי ימי המרכז מופיעים «מבחנים חמישי» ו«מבחנים ראשון» של השבוע הבא, כדי להתכונן אליהם מראש.</li>
+    <li>בצד מופיעה רשימת מבחני השבוע לפי ימים, כולל ראשון של השבוע הבא. מבחן עם כפתור «חומר» פותח את חומר ההכנה.</li>
   </ul>
   <button class="btn help-close" type="button" id="helpClose">סגירה</button>
 </dialog>
@@ -368,7 +401,7 @@ function splitPerson(text) {
 }
 
 const isNone = x => /^אין\s/.test(heb(x.t));
-const isOut = x => /לא\s+מגיע/.test(x.t);
+const isOut = x => /לא\s+(?:מגיע|הגיע)/.test(x.t);
 const list = (d, k) => (d && Array.isArray(d[k]) ? d[k] : []);
 
 /* ── בניית השבוע ── */
@@ -422,7 +455,7 @@ function slotsHtml(i) {
 function personHtml(x) {
   if (isNone(x)) return '<li class="empty">' + esc(heb(x.t)) + '</li>';
   const out = isOut(x);
-  const clean = out ? x.t.replace(/\(?\s*לא\s+מגיע[^)]*\)?/, '').trim() : x.t;
+  const clean = out ? x.t.replace(/\(?\s*לא\s+(?:מגיע|הגיע)[^)]*\)?/, '').trim() : x.t;
   const p = splitPerson(clean);
   return '<li class="person' + (out ? ' out' : '') + '"><b>' + esc(p.name) + '</b>' +
     (out ? '<span class="why">לא מגיע השבוע</span>' : '') +
@@ -461,8 +494,9 @@ function itemsBlock(title, html) {
 /* שינויים: "X לא מגיע (סיבה)" מוחק את X מהרשימה, "X מגיע/ה" מוסיף אותו. כל השאר מופיע כהערה. */
 function teamWithChanges(d) {
   const toPerson = (x, extra) => {
-    const p = splitPerson(x.t.replace(/\(?\s*לא\s+מגיע[^)]*\)?/, ''));
-    return Object.assign({ name: p.name, rest: p.rest, out: isOut(x), why: '' }, extra || {});
+    const p = splitPerson(x.t.replace(/\(?\s*לא\s+(?:מגיע|הגיע)[^)]*\)?/, ''));
+    const m = x.t.match(/לא\s+(מגיע|הגיע)(ה)?/);
+    return Object.assign({ name: p.name, rest: p.rest, out: !!m, why: '', verb: m ? 'לא ' + m[1] + (m[2] || '') : '' }, extra || {});
   };
   const fellows = list(d, 'fellows').filter(x => !isNone(x)).map(x => toPerson(x));
   const teachers = list(d, 'teachers').filter(x => !isNone(x)).map(x => toPerson(x, { teacher: true }))
@@ -479,11 +513,11 @@ function teamWithChanges(d) {
   const notes = [];
   list(d, 'changes').forEach(x => {
     const s = heb(x.t);
-    const out = s.match(/^(.+?)\s+לא\s+מגיע(?:ה)?\s*(?:\((.+)\))?/);
+    const out = s.match(/^(.+?)\s+לא\s+(?:מגיע|הגיע)(?:ה)?\s*(?:\((.+)\))?/);
     const inn = !out && s.match(/^(.+?)\s+מגיע(?:ה)?\s*(?:\((.+)\))?$/);
     if (out) {
       const hit = find(out[1]);
-      if (hit) { hit.out = true; hit.why = out[2] || ''; hit.verb = /מגיעה/.test(s) ? 'לא מגיעה' : 'לא מגיע'; }
+      if (hit) { hit.out = true; hit.why = out[2] || ''; hit.verb = /הגיע/.test(s) ? (/הגיעה/.test(s) ? 'לא הגיעה' : 'לא הגיע') : (/מגיעה/.test(s) ? 'לא מגיעה' : 'לא מגיע'); }
       else notes.push(s);
     } else if (inn) {
       const hit = find(inn[1]);
@@ -527,16 +561,27 @@ function dayHtml(d, i, start, laterHtml) {
   if (notes.length) html += '<ul class="notes">' + notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul>';
   if (teachers.length) html += '<h4 class="sec">מורים</h4><ul class="names">' + teachers.map(nameHtml).join('') + '</ul>';
 
-  const exams = list(d, 'exams');
-  if (exams.length) html += '<div class="extra"><h4>מבחנים</h4><ul class="exams">' + exams.map(examLine).join('') + '</ul></div>';
   return html + laterHtml + '</section>';
 }
 
-function examDayHtml(g) {
-  return '<section class="day examday" aria-label="מבחנים ' + DAYS[weekday(g.t)] + ' ' + dm(g.t) + '">' +
-    '<header class="day-head"><h3>מבחנים ' + DAYS[weekday(g.t)] +
-    '<span class="date"><bdi dir="ltr">' + dm(g.t) + '</bdi></span></h3></header><hr>' +
-    '<ul class="exams">' + g.exams.map(examLine).join('') + '</ul></section>';
+function examPanelHtml(start, byIndex) {
+  const groups = [];
+  for (let i = 0; i < 7; i++) {
+    const ex = byIndex[i] ? list(byIndex[i], 'exams') : [];
+    if (ex.length) groups.push({ t: start + i * DAY_MS, exams: ex, next: false });
+  }
+  const nk = toKey(start + 7 * DAY_MS);
+  const next = weeks[nk];
+  const ns = next && next.days.find(d => d.key === nk);
+  if (ns && list(ns, 'exams').length) groups.push({ t: start + 7 * DAY_MS, exams: list(ns, 'exams'), next: true });
+  if (!groups.length) return '<p class="xnone">אין מבחנים השבוע.</p>';
+  return groups.map(g => '<section class="xday"><h3>' + DAYS[weekday(g.t)] +
+    '<span class="date"><bdi dir="ltr">' + dm(g.t) + '</bdi></span>' + (g.next ? '<span class="next">שבוע הבא</span>' : '') + '</h3>' +
+    '<ul class="xlist">' + g.exams.map(x => {
+      const url = safeUrl(x.l);
+      return '<li' + (url ? ' class="has"' : '') + '><span>' + esc(heb(x.t)) + '</span>' +
+        (url ? '<a class="xbtn" href="' + esc(url) + '" target="_blank" rel="noopener">חומר</a>' : '') + '</li>';
+    }).join('') + '</ul></section>').join('');
 }
 
 function renderHighlights(week) {
@@ -566,12 +611,14 @@ function render() {
   if (!built || !built.shown.length) {
     box.style.setProperty('--n', 1);
     box.innerHTML = '<p class="state">עוד אין תכנית לשבוע הזה. היא תופיע כאן כשתיפתח בגיליון.</p>';
+    document.getElementById('examPanel').hidden = true;
     return;
   }
   const { byIndex, shown, later } = built;
-  box.style.setProperty('--n', shown.length);
-  box.innerHTML = shown.map(i => dayHtml(byIndex[i], i, shownStart, '')).join('') +
-    later.filter(g => g.exams.length).map(examDayHtml).join('');
+  
+  box.innerHTML = shown.map(i => dayHtml(byIndex[i], i, shownStart, '')).join('');
+  document.getElementById('xBody').innerHTML = examPanelHtml(shownStart, byIndex);
+  document.getElementById('examPanel').hidden = false;
 }
 
 function move(dir) {
